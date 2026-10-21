@@ -1,0 +1,20 @@
+# Serviço de notificações push da ShopSync (Cloudflare Workers, plano grátis).
+name = "shopsync-push"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# Todos os dias às 06:00 UTC = 08:00 em Maputo.
+# Para mudar a hora: https://developers.cloudflare.com/workers/configuration/cron-triggers/
+[triggers]
+crons = ["0 6 * * *"]
+
+[vars]
+PROJECT_ID = "shopsync-eb1cf"
+# fuso horário de Moçambique (UTC+2), para contar os dias certos
+FUSO_HORAS = "2"
+# endereço do painel, aberto ao tocar na notificação (vazio = o próprio endereço onde ativou o sino)
+PAINEL_URL = ""
+
+# Segredos (NÃO ficam neste ficheiro). Defina com:
+#   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT   (cole o JSON da conta de serviço)
+#   npx wrangler secret put CHAVE_TESTE                (uma palavra-passe qualquer, para testar)
