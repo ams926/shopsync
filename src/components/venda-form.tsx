@@ -8,7 +8,7 @@ import { IconeServico, corServico } from "@/components/marca"
 import { Vagas } from "@/components/vagas"
 import { useDados } from "@/hooks/useDados"
 import { atualizarVenda, criarVenda, type DadosVenda } from "@/lib/db"
-import { data, deInputData, mt, paraInputData } from "@/lib/format"
+import { dataHora, deInputDataHora, mt, paraInputDataHora } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import {
   LIMITE_POR_PERFIL,
@@ -56,7 +56,7 @@ export function VendaForm({ inicial, onGuardada, compacto = false }: Props) {
   const [nome, setNome] = useState(inicial?.nomeCliente ?? "")
   const [telefone, setTelefone] = useState(inicial ? telefoneLocal(inicial.telefone) : "")
   const [email, setEmail] = useState(inicial?.emailCliente ?? "")
-  const [inicio, setInicio] = useState(paraInputData(inicial?.dataRegisto ?? new Date()))
+  const [inicio, setInicio] = useState(paraInputDataHora(inicial?.dataRegisto ?? new Date()))
   const [preco, setPreco] = useState(inicial ? String(inicial.precoMZN) : "")
   const [aGuardar, setAGuardar] = useState(false)
   const [tentou, setTentou] = useState(false)
@@ -106,7 +106,7 @@ export function VendaForm({ inicial, onGuardada, compacto = false }: Props) {
       ? Math.max(1, Math.round((inicial.dataExpiracao.getTime() - inicial.dataRegisto.getTime()) / DIA))
       : 30
   const dias = pacote?.dias ?? inicial?.diasPacote ?? diasAntigos
-  const dataInicio = deInputData(inicio)
+  const dataInicio = deInputDataHora(inicio)
   const dataFim = somarDias(dataInicio, dias)
   const valor = Number(preco.replace(",", ".")) || 0
 
@@ -149,6 +149,7 @@ export function VendaForm({ inicial, onGuardada, compacto = false }: Props) {
         setTelefone("")
         setEmail("")
         setTentou(false)
+        setInicio(paraInputDataHora(new Date()))
         setPerfil("")
       }
     } catch (e) {
@@ -299,8 +300,23 @@ export function VendaForm({ inicial, onGuardada, compacto = false }: Props) {
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@email.com" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="inicio">Começa a</Label>
-              <Input id="inicio" type="date" className="num" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="inicio">Começa a (dia e hora)</Label>
+                <button
+                  type="button"
+                  onClick={() => setInicio(paraInputDataHora(new Date()))}
+                  className="text-[12px] font-semibold text-azul-ink hover:underline"
+                >
+                  Agora
+                </button>
+              </div>
+              <Input
+                id="inicio"
+                type="datetime-local"
+                className="num"
+                value={inicio}
+                onChange={(e) => e.target.value && setInicio(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="preco">Valor pago (MT)</Label>
@@ -329,9 +345,9 @@ export function VendaForm({ inicial, onGuardada, compacto = false }: Props) {
             </div>
             <dl className="num grid grid-cols-2 gap-y-1 text-[13px]">
               <dt className="text-muted-foreground">Início</dt>
-              <dd className="text-right">{data(dataInicio)}</dd>
+              <dd className="text-right">{dataHora(dataInicio)}</dd>
               <dt className="text-muted-foreground">Fim</dt>
-              <dd className="text-right font-semibold">{data(dataFim)}</dd>
+              <dd className="text-right font-semibold">{dataHora(dataFim)}</dd>
               <dt className="text-muted-foreground">Pacote</dt>
               <dd className="text-right">{pacoteNome || "—"}</dd>
             </dl>

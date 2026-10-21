@@ -12,7 +12,7 @@ Feito com React, Vite, Tailwind CSS, shadcn/ui e ícones Lucide.
 | Página | Para quê |
 | --- | --- |
 | **Painel** | Receita do mês, clientes ativos, quem termina nos próximos 3 dias, pedidos pendentes, vagas livres por perfil e receita dos últimos 6 meses. |
-| **Nova venda** | Escolher serviço, pacote e perfil (mostra as vagas: no máximo 3 clientes por perfil), dados do cliente e valor pago. |
+| **Nova venda** | Escolher serviço, pacote e perfil (mostra as vagas: no máximo 3 clientes por perfil), dados do cliente e valor pago. O início tem **dia e hora** (por omissão, a hora atual); o fim fica à mesma hora. |
 | **Vendas** | Lista com pesquisa e filtros (ativas, a expirar, expiradas, pendentes, já renovadas). Cada venda tem: Renovar, Enviar dados no WhatsApp, Lembrar/cobrar, Partilhar recibo, Baixar recibo PDF, Editar e Apagar. |
 | **Clientes** | Todas as vendas agrupadas por cliente (pelo telefone), com o total gasto e o histórico. |
 | **Relatórios** | Receita e lucro por serviço, ritmo do mês, renovações, clientes novos vs. que voltam, pacotes vendidos, ocupação dos perfis e melhores clientes. Período: este mês, 3 meses ou 12 meses. Cada gráfico tem vista em tabela. |

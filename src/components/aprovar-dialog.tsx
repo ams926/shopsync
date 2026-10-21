@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Vagas } from "@/components/vagas"
 import { useDados } from "@/hooks/useDados"
 import { aprovarVenda } from "@/lib/db"
-import { data, mt } from "@/lib/format"
+import { dataHora, mt } from "@/lib/format"
 import { LIMITE_POR_PERFIL, ocupacao, pacoteDe, somarDias } from "@/lib/vendas"
 import type { Venda } from "@/lib/types"
 
@@ -96,7 +96,7 @@ function Conteudo({ venda, onAprovada }: { venda: Venda; onAprovada: (v: Venda) 
         </Select>
       </div>
       <p className="num text-sm text-ink-soft">
-        Fica ativo de hoje até <b className="text-ink">{data(fim)}</b>.
+        Fica ativo a partir de agora até <b className="text-ink">{dataHora(fim)}</b>.
       </p>
       <Button size="lg" variant="coral" onClick={confirmar} disabled={!perfil || aGuardar}>
         {aGuardar && <Loader2Icon className="animate-spin" />}

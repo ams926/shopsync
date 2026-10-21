@@ -3,15 +3,18 @@ name = "shopsync-push"
 main = "src/index.js"
 compatibility_date = "2025-06-01"
 
-# Todos os dias às 06:00 UTC = 08:00 em Maputo.
-# Para mudar a hora: https://developers.cloudflare.com/workers/configuration/cron-triggers/
+# De hora a hora (minuto 0). O próprio Worker decide o que enviar em cada hora.
 [triggers]
-crons = ["0 6 * * *"]
+crons = ["0 * * * *"]
 
 [vars]
 PROJECT_ID = "shopsync-eb1cf"
-# fuso horário de Moçambique (UTC+2), para contar os dias certos
+# fuso horário de Moçambique (UTC+2), para contar os dias e as horas certas
 FUSO_HORAS = "2"
+# hora do resumo do dia, em Maputo
+HORA_RESUMO = "8"
+# não incomodar entre estas horas (Maputo); "" = sem silêncio
+SILENCIO = "22-7"
 # endereço do painel, aberto ao tocar na notificação (vazio = o próprio endereço onde ativou o sino)
 PAINEL_URL = ""
 

@@ -112,7 +112,7 @@ function Fila({ onFechar }: { onFechar: () => void }) {
                     estadoDe(venda, agora) === "expirado" ? "text-coral-ink" : "bg-sol",
                   )}
                 >
-                  {quando(diasRestantes(venda, agora), estadoDe(venda, agora) === "expirado")}
+                  {quando(diasRestantes(venda, agora), estadoDe(venda, agora) === "expirado", venda.dataExpiracao)}
                 </span>
               </div>
               <label className="block">

@@ -21,7 +21,7 @@ import {
 import { Carimbo, EtiquetaServico, corServico } from "@/components/marca"
 import { useAcoes } from "@/hooks/useAcoes"
 import { useDados } from "@/hooks/useDados"
-import { data, mt, quando } from "@/lib/format"
+import { dataHora, mt, quando } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { diasRestantes, estadoDe } from "@/lib/vendas"
 import type { Venda } from "@/lib/types"
@@ -82,9 +82,9 @@ export function VendaCard({ venda }: { venda: Venda }) {
               "a aguardar"
             ) : (
               <>
-                {data(venda.dataExpiracao)}{" "}
+                {dataHora(venda.dataExpiracao)}{" "}
                 <span className={cn(estado === "a-expirar" && "rounded bg-sol px-1 text-ink", estado === "expirado" && "text-coral-ink")}>
-                  ({quando(dias, estado === "expirado")})
+                  ({quando(dias, estado === "expirado", venda.dataExpiracao)})
                 </span>
               </>
             )}

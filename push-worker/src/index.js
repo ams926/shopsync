@@ -1,31 +1,46 @@
 /*
-  ShopSync · notificações push diárias.
+  ShopSync · notificações push.
 
-  Todas as manhãs (ver wrangler.toml):
-    1. lê no Firestore as subscrições que terminam hoje, amanhã ou nos próximos dias,
-       e os pedidos pendentes;
-    2. envia um resumo, por Firebase Cloud Messaging, para cada aparelho registado
-       no painel (documento configuracoes/push);
-    3. apaga os aparelhos que já não existem.
+  O Cloudflare acorda este Worker de hora a hora (ver wrangler.toml) e ele faz duas coisas:
 
-  Teste manual: abra  https://<o-seu-worker>.workers.dev/teste?chave=<CHAVE_TESTE>
+    A. Aviso de última hora (todas as horas, fora das horas de silêncio):
+       quem termina daqui a cerca de 1 hora — por exemplo, às 13:00 avisa quem
+       termina entre as 13:30 e as 14:30. Cada cliente é avisado uma só vez.
+
+    B. Resumo do dia (uma vez, à HORA_RESUMO, por omissão 08:00 em Maputo):
+       quem termina hoje, amanhã e nos próximos 3 dias, quem terminou ontem
+       e os pedidos pendentes.
+
+  Os avisos vão, por Firebase Cloud Messaging, para cada aparelho onde se
+  ativou o sino no painel (documento configuracoes/push). Os aparelhos que já
+  não existem são apagados dessa lista.
+
+  Testes manuais (com a palavra-passe CHAVE_TESTE):
+    https://<o-seu-worker>.workers.dev/teste?chave=...        → envia o resumo do dia agora
+    https://<o-seu-worker>.workers.dev/teste-hora?chave=...   → envia o aviso da próxima hora agora
 */
 
-const DIA = 86_400_000
+const HORA = 3_600_000
+const DIA = 24 * HORA
 const DIAS_AVISO = 3
 
 export default {
-  async scheduled(_evento, env, ctx) {
-    ctx.waitUntil(executar(env, { forcar: false }))
+  async scheduled(evento, env, ctx) {
+    ctx.waitUntil(porHora(env, new Date(evento?.scheduledTime ?? Date.now())))
   },
   async fetch(pedido, env) {
     const url = new URL(pedido.url)
-    if (url.pathname === "/teste") {
+    const rotas = {
+      "/teste": () => executar(env, { forcar: true }),
+      "/teste-hora": () => avisosDaHora(env, { forcar: true }),
+    }
+    const rota = rotas[url.pathname]
+    if (rota) {
       if (!env.CHAVE_TESTE || url.searchParams.get("chave") !== env.CHAVE_TESTE) {
         return new Response("Chave errada.", { status: 403 })
       }
       try {
-        return Response.json(await executar(env, { forcar: true }))
+        return Response.json(await rota())
       } catch (e) {
         return Response.json({ erro: String(e?.message ?? e) }, { status: 500 })
       }
@@ -34,39 +49,128 @@ export default {
   },
 }
 
-export async function executar(env, { forcar = false, agora = new Date() } = {}) {
+// ---------------- o que corre de hora a hora ----------------
+
+export async function porHora(env, agora = new Date()) {
+  const c = await ligar(env)
+  const r = {}
+  if (horaLocal(agora, c.fuso) === Number(env.HORA_RESUMO ?? 8)) r.resumo = await executar(env, { agora, c })
+  r.hora = await avisosDaHora(env, { agora, c })
+  return r
+}
+
+async function ligar(env) {
   const sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT)
   const projeto = env.PROJECT_ID || sa.project_id
   const fuso = Number(env.FUSO_HORAS ?? 2)
   const acesso = await obterAcesso(sa)
-  const fs = firestore(projeto, acesso)
+  return { projeto, fuso, acesso, fs: firestore(projeto, acesso) }
+}
 
-  // ---- 1. o que há para avisar ----
-  const desde = new Date(agora.getTime() - DIA)
-  const ate = new Date(agora.getTime() + (DIAS_AVISO + 1) * DIA)
+const horaLocal = (d, fuso) => new Date(d.getTime() + fuso * HORA).getUTCHours()
+const hhmm = (d, fuso) => {
+  const l = new Date(d.getTime() + fuso * HORA)
+  return `${String(l.getUTCHours()).padStart(2, "0")}:${String(l.getUTCMinutes()).padStart(2, "0")}`
+}
+/** O site antigo guardava só o dia (meia-noite UTC): essas vendas não têm hora verdadeira. */
+export const temHora = (d) => !(d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0)
+const ativa = (v) => v.dataExpiracao && v.status !== "renovado" && v.status !== "pendente"
+
+/** "22-7" = não incomodar das 22:00 às 07:00. Vazio = sem horas de silêncio. */
+export function emSilencio(h, texto = "22-7") {
+  const m = String(texto).match(/^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*$/)
+  if (!m) return false
+  const [ini, fim] = [Number(m[1]), Number(m[2])]
+  if (ini === fim) return false
+  return ini > fim ? h >= ini || h < fim : h >= ini && h < fim
+}
+
+const entre = (de, ate) => ({
+  compositeFilter: {
+    op: "AND",
+    filters: [
+      { fieldFilter: { field: { fieldPath: "dataExpiracao" }, op: "GREATER_THAN_OR_EQUAL", value: { timestampValue: de.toISOString() } } },
+      { fieldFilter: { field: { fieldPath: "dataExpiracao" }, op: "LESS_THAN", value: { timestampValue: ate.toISOString() } } },
+    ],
+  },
+})
+
+const juntar = (l) => (l.length <= 1 ? l.join("") : `${l.slice(0, -1).join(", ")} e ${l[l.length - 1]}`)
+
+// ---------------- A. aviso de última hora ----------------
+
+export async function avisosDaHora(env, { agora = new Date(), forcar = false, c } = {}) {
+  c ??= await ligar(env)
+  const h = horaLocal(agora, c.fuso)
+  if (!forcar && emSilencio(h, env.SILENCIO ?? "22-7")) return { enviado: false, motivo: "horas de silêncio" }
+
+  // janela fixa por hora, para cada cliente cair numa só: [hora + 30 min, hora + 90 min)
+  const t0 = Math.floor(agora.getTime() / HORA) * HORA
+  const de = new Date(t0 + 30 * 60_000)
+  const ate = new Date(t0 + 90 * 60_000)
+  const lista = (await c.fs.consultar({ from: [{ collectionId: "vendas" }], where: entre(de, ate) }))
+    .filter((v) => ativa(v) && temHora(v.dataExpiracao))
+    .sort((a, b) => a.dataExpiracao - b.dataExpiracao)
+
+  const mensagem = comporHora(lista, c.fuso)
+  if (!mensagem && !forcar) return { enviado: false, motivo: "ninguém termina na próxima hora", janela: [hhmm(de, c.fuso), hhmm(ate, c.fuso)] }
+  const texto = mensagem ?? {
+    titulo: "ShopSync · teste (aviso de hora)",
+    corpo: `Ninguém termina entre as ${hhmm(de, c.fuso)} e as ${hhmm(ate, c.fuso)}. Os avisos de hora estão a funcionar.`,
+  }
+  const envio = await enviarATodos(env, c, texto, "vendas", `hora-${t0}`)
+  return { ...envio, janela: [hhmm(de, c.fuso), hhmm(ate, c.fuso)], clientes: lista.map((v) => v.nomeCliente), mensagem: texto }
+}
+
+export function comporHora(lista, fuso = 2) {
+  if (lista.length === 0) return null
+  if (lista.length === 1) {
+    const v = lista[0]
+    return {
+      titulo: `ShopSync · ${v.nomeCliente} termina às ${hhmm(v.dataExpiracao, fuso)}`,
+      corpo: `${v.servico || "Subscrição"}${v.perfil ? ` · perfil ${v.perfil}` : ""}. Toque para lembrar ou renovar.`,
+    }
+  }
+  const nomes = lista.map((v) => v.nomeCliente)
+  const mostrar = nomes.length > 3 ? [...nomes.slice(0, 3), `mais ${nomes.length - 3}`] : nomes
+  return {
+    titulo: `ShopSync · ${lista.length} clientes terminam até às ${hhmm(lista[lista.length - 1].dataExpiracao, fuso)}`,
+    corpo: `${juntar(mostrar)}. Toque para lembrar ou renovar.`,
+  }
+}
+
+// ---------------- B. resumo do dia ----------------
+
+export async function executar(env, { forcar = false, agora = new Date(), c } = {}) {
+  c ??= await ligar(env)
+  const { fs, fuso } = c
+
   const proximas = (
     await fs.consultar({
       from: [{ collectionId: "vendas" }],
-      where: {
-        fieldFilter: { field: { fieldPath: "dataExpiracao" }, op: "GREATER_THAN_OR_EQUAL", value: { timestampValue: desde.toISOString() } },
-      },
+      where: entre(new Date(agora.getTime() - 2 * DIA), new Date(agora.getTime() + (DIAS_AVISO + 1) * DIA)),
     })
-  ).filter((v) => v.dataExpiracao && v.dataExpiracao < ate && v.status !== "renovado" && v.status !== "pendente")
+  ).filter(ativa)
 
   const pendentes = await fs.consultar({
     from: [{ collectionId: "vendas" }],
     where: { fieldFilter: { field: { fieldPath: "status" }, op: "EQUAL", value: { stringValue: "pendente" } } },
   })
 
-  const diaLocal = (d) => Math.floor((d.getTime() + fuso * 3600_000) / DIA)
+  const diaLocal = (d) => Math.floor((d.getTime() + fuso * HORA) / DIA)
   const hoje = diaLocal(agora)
   const conta = { hoje: 0, amanha: 0, depois: 0, ontem: 0 }
   const nomesHoje = []
   for (const v of proximas) {
     const d = diaLocal(v.dataExpiracao) - hoje
+    // já terminou (ontem ou hoje de madrugada): conta como "terminou"
+    if (v.dataExpiracao <= agora) {
+      if (d >= -1) conta.ontem++
+      continue
+    }
     if (d === 0) {
       conta.hoje++
-      nomesHoje.push(v.nomeCliente)
+      nomesHoje.push({ nome: v.nomeCliente, hora: temHora(v.dataExpiracao) ? hhmm(v.dataExpiracao, fuso) : null })
     } else if (d === 1) conta.amanha++
     else if (d > 1 && d <= DIAS_AVISO) conta.depois++
     else if (d === -1) conta.ontem++
@@ -74,29 +178,30 @@ export async function executar(env, { forcar = false, agora = new Date() } = {})
 
   const mensagem = compor(conta, nomesHoje, pendentes.length)
   if (!mensagem && !forcar) return { enviado: false, motivo: "nada para avisar", conta, pendentes: pendentes.length }
+  const texto = mensagem ?? { titulo: "ShopSync · teste", corpo: "As notificações estão a funcionar." }
+  const caminho = conta.hoje + conta.amanha + conta.depois > 0 ? "vendas" : "painel"
+  const envio = await enviarATodos(env, c, texto, caminho, "resumo-diario")
+  return { ...envio, conta, pendentes: pendentes.length, mensagem: texto }
+}
 
-  // ---- 2. enviar ----
-  const docPush = await fs.ler("configuracoes/push")
+// ---------------- envio para todos os aparelhos ----------------
+
+async function enviarATodos(env, c, texto, caminho, tag) {
+  const docPush = await c.fs.ler("configuracoes/push")
   const tokens = Object.entries(docPush?.tokens ?? {})
     .map(([chave, t]) => ({ chave, token: t?.token }))
     .filter((t) => t.token)
-  if (tokens.length === 0) return { enviado: false, motivo: "nenhum aparelho registado no painel", conta }
+  if (tokens.length === 0) return { enviado: false, motivo: "nenhum aparelho registado no painel" }
 
-  const texto = mensagem ?? { titulo: "ShopSync · teste", corpo: "As notificações estão a funcionar." }
   const base = (env.PAINEL_URL || "").replace(/\/$/, "")
   const resultados = []
   for (const t of tokens) {
-    const r = await enviarFcm(projeto, acesso, t.token, {
-      title: texto.titulo,
-      body: texto.corpo,
-      url: `${base}/#/${conta.hoje + conta.amanha + conta.depois > 0 ? "vendas" : "painel"}`,
-      tag: "resumo-diario",
-    })
+    const r = await enviarFcm(c.projeto, c.acesso, t.token, { title: texto.titulo, body: texto.corpo, url: `${base}/#/${caminho}`, tag })
     resultados.push({ aparelho: t.chave, ok: r.ok, estado: r.estado })
-    // ---- 3. limpar aparelhos que já não existem ----
-    if (!r.ok && r.invalido) await fs.apagarCampo("configuracoes/push", `tokens.${t.chave}`)
+    // aparelhos que já não existem saem da lista
+    if (!r.ok && r.invalido) await c.fs.apagarCampo("configuracoes/push", `tokens.${t.chave}`)
   }
-  return { enviado: true, conta, pendentes: pendentes.length, mensagem: texto, resultados }
+  return { enviado: resultados.some((r) => r.ok), resultados }
 }
 
 export function compor(conta, nomesHoje, nPendentes) {
@@ -104,16 +209,18 @@ export function compor(conta, nomesHoje, nPendentes) {
   if (conta.hoje) partes.push(`${conta.hoje} ${conta.hoje === 1 ? "termina" : "terminam"} hoje`)
   if (conta.amanha) partes.push(`${conta.amanha} amanhã`)
   if (conta.depois) partes.push(`${conta.depois} nos próximos dias`)
-  if (conta.ontem) partes.push(`${conta.ontem} ${conta.ontem === 1 ? "terminou" : "terminaram"} ontem`)
+  if (conta.ontem) partes.push(`${conta.ontem} ${conta.ontem === 1 ? "terminou" : "terminaram"} desde ontem`)
   if (partes.length === 0 && nPendentes === 0) return null
 
   let titulo
-  if (conta.hoje === 1) titulo = `${nomesHoje[0]} termina hoje`
+  if (conta.hoje === 1) {
+    const n = typeof nomesHoje[0] === "string" ? { nome: nomesHoje[0] } : nomesHoje[0]
+    titulo = `${n.nome} termina hoje${n.hora ? ` às ${n.hora}` : ""}`
+  }
   else if (conta.hoje > 1) titulo = `${conta.hoje} clientes terminam hoje`
   else if (partes.length) titulo = "Renovações a tratar"
   else titulo = "Pedidos à espera"
 
-  const juntar = (l) => (l.length <= 1 ? l.join("") : `${l.slice(0, -1).join(", ")} e ${l[l.length - 1]}`)
   let corpo = partes.length ? `${juntar(partes)}.` : ""
   if (nPendentes) corpo += `${corpo ? " " : ""}${nPendentes} ${nPendentes === 1 ? "pedido pendente" : "pedidos pendentes"}.`
   return { titulo: `ShopSync · ${titulo}`, corpo: `${corpo} Toque para abrir o painel.` }

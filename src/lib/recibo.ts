@@ -5,7 +5,7 @@ import bricolageBold from "@/assets/fontes/Bricolage-Bold.ttf?url"
 import bricolageExtra from "@/assets/fontes/Bricolage-ExtraBold.ttf?url"
 import plexRegular from "@/assets/fontes/PlexMono-400.ttf?url"
 import plexBold from "@/assets/fontes/PlexMono-600.ttf?url"
-import { dataNumerica } from "./format"
+import { dataHoraNumerica, dataNumerica, hora, temHora } from "./format"
 import { numeroRecibo, pinDe } from "./vendas"
 import type { ContaServico, Venda } from "./types"
 
@@ -219,9 +219,24 @@ export function criarRecibo(v: Venda, conta: ContaServico | undefined): { blob: 
   }
   rotulo("Início", x1 - 1.7, y + 5)
   rotulo("Válido até", x2 + 1.7, y + 5, { align: "right" })
-  fonte("monoB", 10)
-  pdf.text(dataNumerica(v.dataRegisto), x1 - 1.7, y + 18.5)
-  pdf.text(dataNumerica(v.dataExpiracao), x2 + 1.7, y + 18.5, { align: "right" })
+  // data em destaque e, ao lado, a hora em letra mais leve
+  const comHora = (d: Date | null, x: number, alinhar: "left" | "right") => {
+    fonte("monoB", 10)
+    const dt = dataNumerica(d)
+    const h = temHora(d) ? ` ${hora(d)}` : ""
+    const wd = pdf.getTextWidth(dt)
+    fonte("mono", 9, COR.suave)
+    const wh = h ? pdf.getTextWidth(h) : 0
+    const x0 = alinhar === "left" ? x : x - wd - wh
+    fonte("monoB", 10)
+    pdf.text(dt, x0, y + 18.5)
+    if (h) {
+      fonte("mono", 9, COR.suave)
+      pdf.text(h, x0 + wd, y + 18.5)
+    }
+  }
+  comHora(v.dataRegisto, x1 - 1.7, "left")
+  comHora(v.dataExpiracao, x2 + 1.7, "right")
 
   // ---------- dados de acesso ----------
   y = 99
@@ -289,7 +304,7 @@ export function criarRecibo(v: Venda, conta: ContaServico | undefined): { blob: 
   fonte("sansB", 9.5)
   pdf.text(cabe(`${v.servico} · ${v.pacote}`, W - 30), M, y + 8)
   fonte("sans", 7.5, COR.suave)
-  pdf.text(`${dataNumerica(v.dataRegisto)} a ${dataNumerica(v.dataExpiracao)}`, M, y + 12)
+  pdf.text(`${dataHoraNumerica(v.dataRegisto)} a ${dataHoraNumerica(v.dataExpiracao)}`, M, y + 12)
   fonte("mono", 9.5)
   pdf.text(`${v.precoMZN.toLocaleString("pt-PT")} MT`, L - M, y + 8, { align: "right" })
 

@@ -1,4 +1,4 @@
-import { dataNumerica } from "./format"
+import { dataHoraNumerica, hora, temHora } from "./format"
 import { pinDe, diasRestantes } from "./vendas"
 import type { ContaServico, Venda } from "./types"
 
@@ -17,7 +17,7 @@ export function abrirWhatsApp(telefone: string, texto?: string) {
 const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] || nome
 
 export function mensagemDados(v: Venda, conta: ContaServico | undefined): string {
-  const fim = dataNumerica(v.dataExpiracao)
+  const fim = dataHoraNumerica(v.dataExpiracao)
   if (/spotify/i.test(v.servico)) {
     return [
       `Olá ${primeiroNome(v.nomeCliente)}, obrigado pela preferência.`,
@@ -45,11 +45,12 @@ export function mensagemDados(v: Venda, conta: ContaServico | undefined): string
 export function mensagemCobranca(v: Venda, agora = new Date()): string {
   const dias = diasRestantes(v, agora) ?? 0
   const nome = primeiroNome(v.nomeCliente)
-  const fim = dataNumerica(v.dataExpiracao)
-  if (dias < 0) {
+  const fim = dataHoraNumerica(v.dataExpiracao)
+  const as = temHora(v.dataExpiracao) ? ` às ${hora(v.dataExpiracao)}` : ""
+  if (dias < 0 || (v.dataExpiracao && v.dataExpiracao <= agora)) {
     return `Olá ${nome}! O seu acesso *${v.servico}* (perfil ${v.perfil}) terminou a ${fim}.\n\nQuer renovar para continuar a ver? É só responder a esta mensagem.`
   }
-  const prazo = dias === 0 ? "hoje" : dias === 1 ? "amanhã" : `a ${fim}`
+  const prazo = dias === 0 ? `hoje${as}` : dias === 1 ? `amanhã${as}` : `a ${fim}`
   return `Olá ${nome}! Lembrete: o seu acesso *${v.servico}* (perfil ${v.perfil}) termina ${prazo}.\n\nQuer já renovar para não ficar sem acesso?`
 }
 

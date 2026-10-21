@@ -14,7 +14,7 @@ const cab = (t: string) => ({ value: t, fontWeight: "bold" as const, backgroundC
 const dinheiro = (n: number) => ({ value: n, type: Number, format: "#,##0" })
 // o Excel não tem fusos horários: grava-se a hora "de parede" de Maputo como se fosse UTC
 const parede = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes()))
-const dataCel = (d: Date | null | undefined) => (d ? { value: parede(d), type: Date, format: "dd/mm/yyyy" } : null)
+const dataCel = (d: Date | null | undefined) => (d ? { value: parede(d), type: Date, format: "dd/mm/yyyy hh:mm" } : null)
 
 /** Cria e descarrega um .xlsx com três folhas: Vendas, Clientes e Resumo mensal. */
 export async function exportarExcel(vendas: Venda[], contas: ContasMaster, servicos: string[], agora: Date) {
@@ -92,7 +92,7 @@ export async function exportarExcel(vendas: Venda[], contas: ContasMaster, servi
   const largura = (n: number[]) => n.map((width) => ({ width }))
   const hoje = agora.toISOString().slice(0, 10)
   await writeXlsxFile([
-    { data: folhaVendas, sheet: "Vendas", columns: largura([24, 16, 24, 13, 10, 12, 11, 12, 12, 11, 22]), stickyRowsCount: 1 },
+    { data: folhaVendas, sheet: "Vendas", columns: largura([24, 16, 24, 13, 10, 12, 11, 17, 17, 11, 22]), stickyRowsCount: 1 },
     { data: folhaClientes, sheet: "Clientes", columns: largura([24, 16, 22, 10, 15, 15, 15, 11]), stickyRowsCount: 1 },
     { data: folhaResumo, sheet: "Resumo mensal", columns: largura([12, 9, ...cols.map(() => 15), 14, 20, 12]), stickyRowsCount: 1 },
   ]).toFile(`ShopSync_${hoje}.xlsx`)

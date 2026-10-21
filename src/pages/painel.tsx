@@ -142,7 +142,7 @@ export function Painel() {
                       <p className="truncate text-xs text-ink-soft">
                         {v.perfil} ·{" "}
                         <span className={cn("num font-semibold", expirado ? "text-coral-ink" : "rounded bg-sol px-1 text-ink")}>
-                          {quando(dias, estadoDe(v, agora) === "expirado")}
+                          {quando(dias, estadoDe(v, agora) === "expirado", v.dataExpiracao)}
                         </span>
                       </p>
                     </div>

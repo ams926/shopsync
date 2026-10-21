@@ -7,7 +7,7 @@ import { VendaForm } from "@/components/venda-form"
 import { IconeServico } from "@/components/marca"
 import { useAcoes } from "@/hooks/useAcoes"
 import { apagarVenda } from "@/lib/db"
-import { data, mt } from "@/lib/format"
+import { dataHora, mt } from "@/lib/format"
 import type { Venda } from "@/lib/types"
 
 export function EditarDialog({ venda, onFechar }: { venda: Venda | null; onFechar: () => void }) {
@@ -86,7 +86,7 @@ export function PosVendaDialog({ venda, titulo, onFechar }: { venda: Venda | nul
               <div className="min-w-0 flex-1">
                 <p className="truncate font-extrabold">{venda.nomeCliente}</p>
                 <p className="num truncate text-xs text-ink-soft">
-                  {venda.perfil} · até {data(venda.dataExpiracao)}
+                  {venda.perfil} · até {dataHora(venda.dataExpiracao)}
                 </p>
               </div>
               <span className="num font-semibold">{mt(venda.precoMZN)}</span>

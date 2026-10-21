@@ -10,7 +10,7 @@ import { IconeServico } from "@/components/marca"
 import { Vagas } from "@/components/vagas"
 import { useDados } from "@/hooks/useDados"
 import { renovarVenda } from "@/lib/db"
-import { data, mt, quando } from "@/lib/format"
+import { dataHora, hora, mt, quando } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { LIMITE_POR_PERFIL, diasRestantes, estadoDe, ocupacao, pacoteDe, somarDias } from "@/lib/vendas"
 import type { Venda } from "@/lib/types"
@@ -116,7 +116,7 @@ function Conteudo({ venda, onRenovada }: { venda: Venda; onRenovada: (v: Venda) 
             estado === "expirado" ? "text-coral-ink" : estado === "a-expirar" ? "text-ink" : "text-verde",
           )}
         >
-          {quando(diasRestantes(venda, agora), estado === "expirado")}
+          {quando(diasRestantes(venda, agora), estado === "expirado", venda.dataExpiracao)}
         </span>
       </div>
 
@@ -124,8 +124,8 @@ function Conteudo({ venda, onRenovada }: { venda: Venda; onRenovada: (v: Venda) 
         <div className="grid grid-cols-2 gap-2">
           {(
             [
-              ["continuar", "Somar ao tempo que falta", `começa a ${data(venda.dataExpiracao)}`],
-              ["hoje", "Começar hoje", `começa a ${data(agora)}`],
+              ["continuar", "Somar ao tempo que falta", `começa a ${dataHora(venda.dataExpiracao)}`],
+              ["hoje", "Começar hoje", `começa agora (${hora(agora)})`],
             ] as const
           ).map(([m, t, s]) => (
             <button
@@ -199,7 +199,7 @@ function Conteudo({ venda, onRenovada }: { venda: Venda; onRenovada: (v: Venda) 
       <div className="flex items-center justify-between rounded-lg border-2 border-dashed border-ink/30 px-4 py-3">
         <div className="num text-sm">
           <span className="text-muted-foreground">Novo fim </span>
-          <b>{data(fim)}</b>
+          <b>{dataHora(fim)}</b>
         </div>
         <span className="num text-lg font-semibold">{mt(valor)}</span>
       </div>

@@ -2,17 +2,26 @@
 
 ## O que vai conseguir
 
-Todas as manhãs às **8h00**, o seu telemóvel recebe um aviso como este, mesmo com o painel fechado:
+O seu telemóvel recebe dois tipos de aviso, mesmo com o painel fechado:
 
-> **ShopSync · Sílvia Manuel termina hoje**
+**1. Resumo da manhã**, todos os dias às **8h00**:
+
+> **ShopSync · Sílvia Manuel termina hoje às 14:30**
 > 1 termina hoje, 2 amanhã e 1 nos próximos dias. Toque para abrir o painel.
 
-Se nesse dia não houver nada para avisar, não chega nada.
+**2. Aviso de última hora**, cerca de **1 hora antes** de cada cliente terminar:
+
+> **ShopSync · Sílvia Manuel termina às 14:30**
+> Prime Video · perfil B.B. Toque para lembrar ou renovar.
+
+Se não houver nada para avisar, não chega nada. Entre as **22h00 e as 7h00** não envia avisos de última hora, para não o acordar; quem terminar durante a noite aparece no resumo das 8h.
+
+As vendas antigas, do site anterior, só têm o dia (sem hora). Essas aparecem no resumo da manhã, mas não têm aviso de última hora.
 
 ## Como funciona (em 3 frases)
 
 1. Um pequeno programa (chamado **Worker**) fica guardado no Cloudflare, grátis.
-2. Todas as manhãs o Cloudflare acorda-o; ele lê as vendas no seu Firebase e vê quem está a terminar.
+2. O Cloudflare acorda-o **de hora a hora**; ele lê as vendas no seu Firebase e vê quem está a terminar.
 3. Depois envia o aviso para o telemóvel onde carregou no **sino** do painel.
 
 Para isto funcionar precisa de **2 coisas do Firebase** (uma chave e um ficheiro) e de criar o Worker no Cloudflare. **Não precisa de programar nem de usar o terminal**: é tudo no navegador, copiar e colar.
@@ -107,19 +116,21 @@ Este ficheiro deixa o Worker ler as suas vendas.
     - **Value:** uma palavra à sua escolha, sem espaços, por exemplo `teste2026shop`. Anote-a.
 13. Carregue em **Deploy** / **Save**.
 
-### 3.4 Pôr o despertador (todas as manhãs)
+### 3.4 Pôr o despertador (de hora a hora)
 
 14. Ainda em **Settings**, procure **Trigger Events** (ou *Triggers*) → **Add** → **Cron Triggers**.
 15. Escolha a opção de escrever a expressão e escreva exatamente:
 
     ```
-    0 6 * * *
+    0 * * * *
     ```
 
-    Quer dizer «todos os dias às 06:00 UTC», que são as **08:00 em Maputo**.
+    Quer dizer «no minuto 0 de todas as horas». O Worker decide sozinho o que enviar em cada hora: o resumo só às 8h, e os avisos de última hora quando há alguém a terminar.
 16. Carregue em **Add** / **Save**.
 
-✅ **Feito quando:** na página do Worker aparecem os 2 segredos e o *cron* `0 6 * * *`.
+✅ **Feito quando:** na página do Worker aparecem os 2 segredos e o *cron* `0 * * * *`.
+
+> **Já tinha feito este passo com `0 6 * * *`?** Edite-o e troque por `0 * * * *`. E volte ao passo 5 a 9 para colar o `index.js` novo (o código mudou).
 
 Já pode **guardar ou apagar** o ficheiro `.json` da Parte 2.
 
@@ -148,7 +159,7 @@ Pode repetir isto noutros aparelhos (outro telemóvel, o computador); todos rece
 
 ---
 
-## Parte 5 · Testar agora (sem esperar pelas 8h)
+## Parte 5 · Testar agora (sem esperar)
 
 1. **Feche o painel** no telemóvel.
 2. No computador, veja o endereço do Worker: na página do `shopsync-push` aparece algo como
@@ -161,10 +172,17 @@ Pode repetir isto noutros aparelhos (outro telemóvel, o computador); todos rece
 
    (`o-seu-nome`: o que aparece no seu endereço · `teste2026shop`: a palavra que escolheu no passo 12)
 
-4. Em poucos segundos o telemóvel recebe uma notificação. Se não houver ninguém a terminar, recebe «ShopSync · teste — As notificações estão a funcionar».
+4. Em poucos segundos o telemóvel recebe **o resumo do dia**. Se não houver ninguém a terminar, recebe «ShopSync · teste — As notificações estão a funcionar».
 5. A página no computador mostra um texto técnico. O que interessa é ver **`"enviado": true`**.
+6. Para testar o **aviso de última hora**, troque `/teste` por `/teste-hora` no endereço:
 
-🎉 **Está pronto.** A partir de amanhã, os avisos chegam sozinhos às 8h.
+   ```
+   https://shopsync-push.o-seu-nome.workers.dev/teste-hora?chave=teste2026shop
+   ```
+
+   Se ninguém terminar na próxima hora, recebe «teste (aviso de hora)», que confirma que está a funcionar.
+
+🎉 **Está pronto.** A partir de agora, os avisos chegam sozinhos.
 
 ---
 
@@ -187,18 +205,19 @@ Se nada disto resolver, copie o texto que aparece na página de teste e envie-mo
 
 ## Mais tarde
 
-**Mudar a hora:** no Worker → Settings → Trigger Events, edite o cron. Conte sempre 2 horas a menos que em Maputo:
+**Mudar a hora do resumo ou as horas de silêncio:** no Worker → **Settings** → **Variables and Secrets** → **Add** (tipo *Plaintext*):
 
-| Hora em Maputo | Escreva |
-|---|---|
-| 07:00 | `0 5 * * *` |
-| 08:00 | `0 6 * * *` |
-| 09:00 | `0 7 * * *` |
-| 08:00 e 17:00 | crie dois: `0 6 * * *` e `0 15 * * *` |
+| Quer… | Nome | Valor (exemplo) |
+|---|---|---|
+| resumo às 7h em vez das 8h | `HORA_RESUMO` | `7` |
+| silêncio das 23h às 6h | `SILENCIO` | `23-6` |
+| avisos de última hora também à noite | `SILENCIO` | *(deixe vazio)* |
+
+As horas são as de Maputo. Não precisa de mexer no *cron*.
 
 **Deixar de receber num aparelho:** abra o painel nesse aparelho e toque no sino para o desligar.
 
-**Custos:** zero. O Cloudflare oferece 100 000 execuções por dia e este Worker usa 1. O envio de notificações do Firebase é grátis.
+**Custos:** zero. O Cloudflare oferece 100 000 execuções por dia e este Worker usa 24. O envio de notificações do Firebase é grátis, e as leituras da base de dados (algumas dezenas por dia) ficam muito abaixo da quota grátis.
 
 ---
 
